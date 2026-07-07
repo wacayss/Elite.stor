@@ -288,8 +288,6 @@
 <script>
   const ADMIN_PASSWORD = 'elite123';
   const WHATSAPP_NUMBER = '252639047805';
-  const PRODUCTS_KEY = 'elite:products';
-  const ORDERS_KEY = 'elite:orders';
   const PLACEHOLDER_IMG = 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect width="100%" height="100%" fill="#1c1f24"/><text x="50%" y="50%" fill="#5a5f68" font-family="Arial" font-size="16" text-anchor="middle" dy=".3em">Sawir ma jiro</text></svg>`);
 
   const defaultProducts = [
@@ -332,30 +330,61 @@
     toast._timer = setTimeout(()=>{ toast.style.opacity = '0'; }, 3200);
   }
 
-  // ---------- Storage helpers (localStorage — fully standalone, no Claude dependency) ----------
+  // ---------- Storage helpers (JSONBin.io — shared across all visitors) ----------
+  const JSONBIN_ID = '6a4b75a2da38895dfe342a27';
+  const JSONBIN_KEY = '$2a$10$Vz9aI0HXtNJcMb.7GQ2wJ.JoQ1ZDPbRzvoMwE.LjAJCnXFIPgTdmW';
+  const JSONBIN_BASE = `https://api.jsonbin.io/v3/b/${JSONBIN_ID}`;
+
+  async function getBinData(){
+    const res = await fetch(`${JSONBIN_BASE}/latest?_=${Date.now()}`, {
+      headers: { 'X-Master-Key': JSONBIN_KEY, 'X-Bin-Meta': 'false' },
+      cache: 'no-store'
+    });
+    if(!res.ok) throw new Error('JSONBin GET failed: ' + res.status);
+    const data = await res.json();
+    const record = data.record || data;
+    return record || { products: defaultProducts, orders: [] };
+  }
+
+  async function putBinData(record){
+    const res = await fetch(JSONBIN_BASE, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_KEY },
+      body: JSON.stringify(record),
+      cache: 'no-store'
+    });
+    if(!res.ok) throw new Error('JSONBin PUT failed: ' + res.status);
+    return res.json();
+  }
+
   async function loadProducts(){
     try{
-      const raw = localStorage.getItem(PRODUCTS_KEY);
-      products = raw ? JSON.parse(raw) : defaultProducts;
-      if(!raw){ localStorage.setItem(PRODUCTS_KEY, JSON.stringify(defaultProducts)); }
+      const record = await getBinData();
+      products = (record.products && record.products.length) ? record.products : defaultProducts;
     }catch(e){
+      showToast('Ma helin xogta online-ka ah, waxaa la isticmaalayaa xog caadi ah.');
       products = defaultProducts;
-      try{ localStorage.setItem(PRODUCTS_KEY, JSON.stringify(defaultProducts)); }catch(e2){}
     }
   }
   async function saveProducts(){
-    try{ localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products)); }
-    catch(e){ showToast('Khalad ayaa dhacay markii la kaydinayay alaabta.'); }
+    try{
+      const record = await getBinData();
+      record.products = products;
+      await putBinData(record);
+    }catch(e){ showToast('Khalad ayaa dhacay markii la kaydinayay alaabta. Hubi internet-ka.'); }
   }
   async function loadOrders(){
     try{
-      const raw = localStorage.getItem(ORDERS_KEY);
-      return raw ? JSON.parse(raw) : [];
-    }catch(e){ return []; }
+      const record = await getBinData();
+      return record.orders || [];
+    }catch(e){ showToast('Ma helin dalbashooyinka. Hubi internet-ka.'); return []; }
   }
   async function saveOrders(orders){
-    try{ localStorage.setItem(ORDERS_KEY, JSON.stringify(orders)); }
-    catch(e){ showToast('Khalad ayaa dhacay markii la kaydinayay dalbashada.'); }
+    try{
+      const record = await getBinData();
+      record.orders = orders;
+      await putBinData(record);
+    }catch(e){ showToast('Khalad ayaa dhacay markii la kaydinayay dalbashada. Hubi internet-ka.'); }
   }
 
   // ---------- Clock ----------
